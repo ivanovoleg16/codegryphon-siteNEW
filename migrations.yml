@@ -1,0 +1,37 @@
+name: Run DB Migrations
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [ main ]
+
+jobs:
+  migrate:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install dependencies (ci)
+        run: npm ci
+
+      - name: Run migrations
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE: ${{ secrets.SUPABASE_SERVICE_ROLE }}
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+        run: npm run migrate
+
+      - name: Check migration status
+        env:
+          SUPABASE_DB_URL: ${{ secrets.DATABASE_URL }}
+        run: |
+          node -e "(async()=>{const fetch= (await import('node-fetch')).default;const url=process.env.CHECK_URL||''; if(!url){console.log('No CHECK_URL set, skipping.'); process.exit(0);} const res= await fetch(url); const j= await res.json(); console.log(j); if(!j.ok||!j.hasWaitlist){console.error('Migration status not OK'); process.exit(1);} })()"
+        shell: bash
